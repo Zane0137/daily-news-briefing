@@ -519,8 +519,9 @@ def send_preview_email(body, config):
         server.sendmail(user, [to_addr], msg.as_string())
         server.quit()
         return True
-    except Exception:
-        return False
+    except Exception as exc:
+        # 只返回错误类型和简短信息（不含密码），方便在云端日志排查
+        return "{}: {}".format(type(exc).__name__, str(exc)[:150])
 
 
 # ----------------------------- 主流程 -----------------------------
@@ -650,10 +651,10 @@ def run(config, use_ai=True, state_path=None):
     email_result = send_preview_email(briefing, config)
     if email_result is None:
         stats.append(" 邮件预览：未配置（跳过）")
-    elif email_result:
-        stats.append(" 邮件预览：已发送到你的邮箱")
+    elif isinstance(email_result, str):
+        stats.append(" 邮件预览：发送失败（{}）（不影响本地预览文件）".format(email_result))
     else:
-        stats.append(" 邮件预览：发送失败（不影响本地预览文件）")
+        stats.append(" 邮件预览：已发送到你的邮箱")
 
     # 写历史记录（仅真实运行模式；--no-ai 测试模式不占用新闻）
     if use_ai:
