@@ -590,6 +590,11 @@ def run(config, use_ai=True, state_path=None):
             kept.append(item)
             seen_fps.add(item["fingerprint"])
             seen_titles.append(item["title_norm"])
+        if not kept and filtered:
+            # 保底：历史去重把本栏清空时，退回本栏得分最高的一条，保证每栏至少 1 条
+            best = max(filtered, key=lambda it: importance_score(it, sec_cfg))
+            best["score"] = importance_score(best, sec_cfg)
+            kept = [best]
         total_deduped += len(kept)
 
         kept.sort(key=lambda it: it["score"], reverse=True)
