@@ -33,6 +33,8 @@ from datetime import datetime, timedelta, timezone
 from email.header import Header
 from email.mime.text import MIMEText
 
+import f1_race_day
+
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(PROJECT_ROOT, "config.json")
 ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
@@ -466,7 +468,7 @@ def ensure_state_file(path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if not os.path.exists(path):
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"items": []}, f, ensure_ascii=False)
+            json.dump({"items": [], "f1_sessions": []}, f, ensure_ascii=False)
 
 
 def load_history(path):
@@ -481,11 +483,26 @@ def load_history(path):
     return [it for it in items if it.get("ts", 0) >= cutoff][:2000]
 
 
-def save_history(path, history):
+def load_f1_sessions(path):
+    """读取已生成过的 F1 Session 唯一 ID 列表；旧缓存没有该字段时返回空。"""
+    ensure_state_file(path)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        sessions = data.get("f1_sessions", [])
+    except Exception:
+        sessions = []
+    return sessions if isinstance(sessions, list) else []
+
+
+def save_history(path, history, f1_sessions=None):
     ensure_state_file(path)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump({"items": history}, f, ensure_ascii=False, indent=2)
+        json.dump(
+            {"items": history, "f1_sessions": f1_sessions or []},
+            f, ensure_ascii=False, indent=2,
+        )
     os.replace(tmp, path)
 
 
@@ -554,7 +571,9 @@ def run(config, use_ai=True, state_path=None):
     state_path = state_path or os.path.join(
         PROJECT_ROOT, config.get("state_file", "state/history.json")
     )
+    state_existed = os.path.exists(state_path)
     history = load_history(state_path)
+    f1_history = load_f1_sessions(state_path)
     history_fps = {h.get("fp") for h in history}
     history_titles = [h.get("title_norm", "") for h in history]
 
@@ -666,6 +685,18 @@ def run(config, use_ai=True, state_path=None):
 
     # 生成预览文件（不发送短信）
     briefing = format_briefing(config, selected)
+
+    # F1 比赛日模块（增量）：普通简报生成后、保存/发送前调用
+    race_section, f1_stats, new_f1_ids = f1_race_day.maybe_run_f1(
+        config, api_key, selected.get("f1", []), f1_history, use_ai=use_ai
+    )
+    stats.extend(f1_stats)
+    if race_section:
+        briefing = briefing.rstrip("\n") + "\n\n" + race_section + "\n"
+        f1_history.extend(new_f1_ids)
+        if not state_existed:
+            stats.append("Duplicate check unavailable, regenerated")
+
     output_dir = os.path.join(PROJECT_ROOT, config.get("output_dir", "output"))
     os.makedirs(output_dir, exist_ok=True)
     preview_path = os.path.join(
@@ -698,10 +729,12 @@ def run(config, use_ai=True, state_path=None):
                         "date": item.get("published").strftime("%Y-%m-%d") if item.get("published") else "",
                     }
                 )
-        save_history(state_path, history)
+        save_history(state_path, history, f1_sessions=f1_history)
         stats.append(" 历史记录已更新（{} 条新条目）".format(
             sum(len(v) for v in selected.values())
         ))
+        if new_f1_ids:
+            stats.append("F1 sessions recorded: {}".format(len(new_f1_ids)))
     else:
         stats.append(" --no-ai 为测试模式，本次不写入历史记录")
 

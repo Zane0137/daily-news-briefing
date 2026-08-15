@@ -56,6 +56,30 @@
   "summary_chars": 60,
   "model": "deepseek-v4-flash",
   "api_base": "https://api.deepseek.com",
+  "f1_race_day": {
+    "enabled": true,
+    "api_base": "https://api.jolpi.ca/ergast/f1",
+    "season": "current",
+    "timezone": "Asia/Shanghai",
+    "lookback_hours": 24,
+    "include": [
+      "qualifying",
+      "sprint",
+      "race"
+    ],
+    "session_duration_hours": {
+      "qualifying": 1,
+      "sprint": 1,
+      "race": 2,
+      "sprint_qualifying": 1
+    },
+    "max_chars": 220,
+    "ai_summary_max_chars": 100,
+    "mclaren_drivers": [
+      "Norris",
+      "Piastri"
+    ]
+  },
   "smtp": {"host": "smtp.163.com", "port": 465},
   "output_dir": "output",
   "state_file": "state/history.json",
