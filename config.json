@@ -3,6 +3,7 @@
     "f1": {
       "label": "F1 速报",
       "top_n": 1,
+      "ai_hint": "优先选择与赛道、赛车、规则、车队厂商战略、车手席位相关的实质新闻；少选娱乐合作、花边八卦类内容。",
       "keywords": [
         "grand prix", "qualifying", "verstappen", "hamilton", "leclerc",
         "norris", "piastri", "russell", "sainz", "alonso", "ferrari",
@@ -20,6 +21,7 @@
     "tech": {
       "label": "数码科技",
       "top_n": 1,
+      "ai_hint": "优先选择真正重要的科技新闻：AI 模型与产品、芯片、操作系统、网络安全事件、大公司重大战略与收购；少选厂商公关通稿式的发布会预告和传闻。",
       "keywords": [
         "iphone", "android", "ai", "artificial intelligence", "chip",
         "nvidia", "apple", "google", "microsoft", "samsung", "xiaomi",
@@ -30,8 +32,8 @@
       "sources": [
         {"name": "The Verge", "url": "https://www.theverge.com/rss/index.xml", "weight": 1.0},
         {"name": "TechCrunch", "url": "https://techcrunch.com/feed/", "weight": 0.9},
-        {"name": "IT之家", "url": "https://www.ithome.com/rss/", "weight": 1.0},
-        {"name": "少数派", "url": "https://sspai.com/feed", "weight": 0.9}
+        {"name": "IT之家", "url": "https://www.ithome.com/rss/", "weight": 0.8},
+        {"name": "少数派", "url": "https://sspai.com/feed", "weight": 0.8}
       ]
     },
     "world": {
@@ -51,7 +53,7 @@
   },
   "window_hours": 24,
   "history_days": 30,
-  "summary_chars": 63,
+  "summary_chars": 60,
   "model": "deepseek-v4-flash",
   "api_base": "https://api.deepseek.com",
   "smtp": {"host": "smtp.163.com", "port": 465},

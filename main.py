@@ -309,18 +309,19 @@ def _deepseek_post(config, payload, api_key, timeout=25):
 
 
 def summarize_with_deepseek(title, excerpt, config, api_key, retries=2):
-    """返回 (中文标题, 中文摘要)；彻底失败返回 None（由调用方用原标题兜底）。"""
+    """返回 (中文标题, 中文摘要)；彻底失败返回 None（由调用方跳过该条）。"""
     retries = 1
-    target = int(config.get("summary_chars", 63))
+    target = int(config.get("summary_chars", 60))
+    hard_max = target + 5  # 60 字左右，上下浮动不超过 5 字
     system = (
-        "你是中文新闻编辑。请把下面这条新闻的标题翻译成中文，并写一句中文摘要。"
-        "要求：摘要约 {} 个汉字（允许上下浮动 3 字）；内容具体明确，不要出现"
-        "'某一个人''某一个车队'这类含糊表述；标题和摘要都只用中文"
-        "（专有名词如 F1、AI 可保留）。"
+        "你是中文新闻编辑。请把下面这条新闻的标题翻译成中文，并用你自己的话写一句"
+        "中文摘要：概括最核心的事实，不要照抄原标题或原文的句子，不要使用省略号，"
+        "确保句子完整。摘要必须写成 {}～{} 字（字数不足就补充关键细节，太长就精简）。"
+        "标题和摘要都只用中文（专有名词如 F1、AI 可保留）。"
         "只输出 JSON：{{\"title_cn\": \"中文标题\", \"summary\": \"中文摘要\"}}，"
         "不要输出任何其他内容。"
-    ).format(target)
-    user = "原标题：{}\n正文摘要：{}".format(title, truncate(excerpt or "（无正文摘要）", 800))
+    ).format(target, max(55, target - 5), hard_max)
+    user = "原标题：{}\n正文：{}".format(title, truncate(excerpt or "（无正文摘要）", 400))
     payload = {
         "model": config.get("model", "deepseek-v4-flash"),
         "messages": [
@@ -329,26 +330,49 @@ def summarize_with_deepseek(title, excerpt, config, api_key, retries=2):
         ],
         "thinking": {"type": "disabled"},
         "temperature": 0.3,
-        "max_tokens": 400,
+        "max_tokens": 200,
     }
+
+    def parse_response(data):
+        content = data["choices"][0]["message"]["content"].strip()
+        if not content:
+            raise ValueError("empty content")
+        match = re.search(r"\{.*\}", content, re.S)
+        if not match:
+            raise ValueError("no json in response")
+        parsed = json.loads(match.group(0))
+        title_cn = (parsed.get("title_cn") or "").strip() or title
+        summary = (parsed.get("summary") or "").strip()
+        if not summary:
+            raise ValueError("empty summary")
+        summary = summary.rstrip("….").strip()
+        return title_cn[:40], summary
+
     for attempt in range(retries + 1):
         if time.monotonic() - RUN_START > RUN_BUDGET_SECONDS:
             return None
         try:
-            data = _deepseek_post(config, payload, api_key)
-            content = data["choices"][0]["message"]["content"].strip()
-            if not content:
-                raise ValueError("empty content")
-            match = re.search(r"\{.*\}", content, re.S)
-            match = re.search(r"\{.*\}", content, re.S)
-            if not match:
-                raise ValueError("no json in response")
-            parsed = json.loads(match.group(0))
-            title_cn = (parsed.get("title_cn") or "").strip() or title
-            summary = (parsed.get("summary") or "").strip()
-            if not summary:
-                raise ValueError("empty summary")
-            return truncate(title_cn, 40), truncate(summary, target + 3)
+            title_cn, summary = parse_response(_deepseek_post(config, payload, api_key))
+            low = max(55, target - 5)
+            if low <= len(summary) <= hard_max:
+                return title_cn, summary
+            # 字数不合规：重写一次压回 55~65 字（不截断、不加省略号）
+            rewrite_user = (
+                "原标题：{}\n正文：{}\n\n上一次摘要 {} 个字，字数不符合要求。"
+                "请重写为 {}～{} 字的一句话：字数不足就补充关键细节，太长就精简；"
+                "不要省略号，不要照抄原文。"
+            ).format(
+                title, truncate(excerpt or "（无正文摘要）", 400),
+                len(summary), low, hard_max
+            )
+            payload["messages"] = [
+                {"role": "system", "content": system},
+                {"role": "user", "content": rewrite_user},
+            ]
+            title_cn2, summary2 = parse_response(_deepseek_post(config, payload, api_key))
+            if low <= len(summary2) <= hard_max:
+                return title_cn2, summary2
+            return title_cn, summary
         except Exception:
             if attempt < retries:
                 time.sleep(1 + attempt)
@@ -624,21 +648,21 @@ def run(config, use_ai=True, state_path=None):
         )
 
         # DeepSeek 中文总结
+        finalized = []
         for index, item in enumerate(chosen, 1):
             if use_ai:
                 result = summarize_with_deepseek(
                     item["title"], item.get("excerpt", ""), config, api_key
                 )
                 if result is None:
-                    item["title_cn"] = item["title"]
-                    item["summary"] = item["title"]  # 原标题兜底
-                    stats.append("  {}：第 {} 条总结失败，已用原标题兜底".format(sec_key, index))
-                else:
-                    item["title_cn"], item["summary"] = result
+                    stats.append("  {}：第 {} 条总结失败，已跳过该条".format(sec_key, index))
+                    continue
+                item["title_cn"], item["summary"] = result
             else:
                 item["title_cn"] = item["title"]
                 item["summary"] = "（AI 总结未启用，接入 DeepSeek Key 后自动生成）"
-        selected[sec_key] = chosen
+            finalized.append(item)
+        selected[sec_key] = finalized
 
     # 生成预览文件（不发送短信）
     briefing = format_briefing(config, selected)
