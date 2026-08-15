@@ -111,10 +111,17 @@ Bark 是 iPhone 上的免费推送 App，不是运营商短信：无需注册、
 
 1. iPhone 上打开 App Store，搜索并安装 **Bark**（免费）。
 2. 打开 Bark，首页会显示形如 `https://api.day.app/xxxx-xxxx-xxxx/` 的地址，
-   复制中间 `xxxx-xxxx-xxxx` 那一段（不是完整网址）。
-3. 本地测试：把 `BARK_KEY=<那段key>` 加进项目里的 `.env`（已被 git 忽略，不会上传）。
+   点"复制"按钮复制完整地址。
+3. 本地测试：把 `BARK_KEY=<地址或key>` 加进项目里的 `.env`
+   （只填 key 或整个地址都可以，程序会自动提取；`.env` 已被 git 忽略，不会上传）。
 4. 云端：到 GitHub 仓库 Settings -> Secrets and variables -> Actions，
    添加一个密钥 `BARK_KEY`（填同一段 key）。
+
+改完 `.env` 后，可以先运行自测工具确认能收到推送：
+
+```
+python tools/test_bark.py
+```
 
 内容规则：
 

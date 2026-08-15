@@ -153,6 +153,23 @@ def _send_http_json(config, text):
     return True
 
 
+def _bark_key_from_env():
+    """读取 BARK_KEY；兼容只填 key 或直接粘贴完整 Bark 地址。
+
+    完整地址示例：https://api.day.app/xxxx-xxxx-xxxx/
+    自动提取域名后的第一段作为设备 key，减少复制出错。
+    """
+    raw = (os.environ.get("BARK_KEY") or "").strip()
+    if not raw:
+        return ""
+    if "://" in raw or raw.lower().startswith("api.day.app/"):
+        url = raw if "://" in raw else "https://" + raw
+        segments = [s for s in urllib.parse.urlparse(url).path.split("/") if s]
+        if segments:
+            return segments[0]
+    return raw.strip("/")
+
+
 def _send_bark(config, text):
     """Bark（iPhone 免费推送）适配器。
 
@@ -161,7 +178,7 @@ def _send_bark(config, text):
     不写入 config.json、代码或日志。
     """
     sms = _sms_cfg(config)
-    key = (os.environ.get("BARK_KEY") or "").strip()
+    key = _bark_key_from_env()
     if not key:
         raise ValueError("BARK_KEY not configured")
     bark = sms.get("bark", {}) or {}
@@ -222,7 +239,7 @@ def send_sms(config, text):
     if sender is None:
         return "unknown provider: {}".format(provider)
     if provider == "bark":
-        if not (os.environ.get("BARK_KEY") or "").strip():
+        if not _bark_key_from_env():
             return None  # 未配置 Bark 设备 key，跳过
     else:
         if not (sms.get("endpoint") or "").strip():
