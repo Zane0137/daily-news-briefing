@@ -34,6 +34,7 @@ from email.header import Header
 from email.mime.text import MIMEText
 
 import f1_race_day
+import sms_sender
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(PROJECT_ROOT, "config.json")
@@ -708,13 +709,28 @@ def run(config, use_ai=True, state_path=None):
     stats.append(" 预览文件已保存：{}".format(preview_path))
     stats.append(" 预计短信段数（仅供参考，当前阶段不发送）：{} 段".format(estimate_segments(briefing)))
 
-    email_result = send_preview_email(briefing, config)
+    if config.get("smtp", {}).get("enabled", True):
+        email_result = send_preview_email(briefing, config)
+    else:
+        email_result = None
     if email_result is None:
         stats.append(" 邮件预览：未配置（跳过）")
     elif isinstance(email_result, str):
         stats.append(" 邮件预览：发送失败（{}）（不影响本地预览文件）".format(email_result))
     else:
         stats.append(" 邮件预览：已发送到你的邮箱")
+
+    # 短信出口（增量，独立于邮件；失败绝不影响邮件/预览/历史）
+    try:
+        sms_result = sms_sender.send_sms(config, briefing)
+    except Exception as exc:
+        sms_result = "unexpected: {}".format(type(exc).__name__)
+    if sms_result is None:
+        stats.append(" SMS：未配置（跳过）")
+    elif isinstance(sms_result, str):
+        stats.append(" SMS：发送失败（{}）（不影响邮件与预览文件）".format(sms_result))
+    else:
+        stats.append(" SMS：已发送到手机")
 
     # 写历史记录（仅真实运行模式；--no-ai 测试模式不占用新闻）
     if use_ai:

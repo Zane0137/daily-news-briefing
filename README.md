@@ -97,6 +97,16 @@ python main.py --check-model
 - F1 API 失败不影响普通新闻简报；DeepSeek 失败输出事实型兜底简报。
 - 所有参数在 `config.json` 的 `f1_race_day` 配置块中。
 
+## 短信发送（出口已就绪，服务商待接入）
+
+- 短信与邮件同源（同一份简报文本），邮件先行、短信随后；**短信失败绝不影响邮件**。
+- 邮件与短信可独立开关：`config.json` 的 `smtp.enabled` / `sms.enabled`。
+- 短信内容为纯文本（无 URL、无表格）；超过 `sms.max_chars`（默认 320）时自动裁剪：
+  **F1 比赛日简报完整保留**，剩余空间按 F1 速报 -> 数码科技 -> 国际要闻 顺序填充。
+- 敏感信息只放 GitHub Secrets：`SMS_PHONE`、`SMS_API_KEY`、`SMS_API_SECRET`。
+- 当前 `sms.endpoint` 为空，模块自动跳过（日志显示 `SMS：未配置（跳过）`）。
+  选定服务商后：填写 `config.json` 的 `sms.endpoint` / `sign`，并在 GitHub 配置 3 个 Secrets。
+
 ### 163 邮箱设置步骤（当前默认）
 
 1. 电脑浏览器打开 https://mail.163.com 登录你的 163 邮箱。

@@ -80,7 +80,15 @@
       "Piastri"
     ]
   },
-  "smtp": {"host": "smtp.163.com", "port": 465},
+  "sms": {
+    "enabled": false,
+    "provider": "http_json",
+    "endpoint": "",
+    "sign": "",
+    "max_chars": 320,
+    "timeout_seconds": 15
+  },
+  "smtp": {"enabled": true, "host": "smtp.163.com", "port": 465},
   "output_dir": "output",
   "state_file": "state/history.json",
   "preview_prefix": "briefing_"
