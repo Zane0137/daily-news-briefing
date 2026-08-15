@@ -73,7 +73,7 @@
       "race": 2,
       "sprint_qualifying": 1
     },
-    "max_chars": 220,
+    "max_chars": 140,
     "ai_summary_max_chars": 100,
     "mclaren_drivers": [
       "Norris",
