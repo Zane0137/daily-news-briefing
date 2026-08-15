@@ -1,0 +1,38 @@
+name: 每日新闻简报
+
+on:
+  schedule:
+    # 北京时间 20:07 = UTC 12:07（UTC+8）
+    - cron: "7 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 恢复历史记录（缓存）
+        uses: actions/cache/restore@v4
+        with:
+          path: state/history.json
+          key: briefing-history-${{ github.run_id }}
+          restore-keys: briefing-history-
+
+      - name: 运行主流程
+        run: python main.py
+
+      - name: 保存历史记录（缓存）
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state/history.json
+          key: briefing-history-${{ github.run_id }}

@@ -1,0 +1,45 @@
+{
+  "sections": {
+    "f1": {
+      "label": "F1 速报",
+      "top_n": 3,
+      "keywords": [
+        "grand prix", "qualifying", "verstappen", "hamilton", "leclerc",
+        "norris", "piastri", "russell", "sainz", "alonso", "ferrari",
+        "red bull", "mercedes", "mclaren", "williams", "alpine",
+        "aston martin", "haas", "podium", "championship", "contract",
+        "pit", "crash", "dnf", "pole", "race", "f1", "formula 1"
+      ],
+      "sources": [
+        {"name": "F1 Official", "url": "https://www.formula1.com/en/latest/all.xml", "weight": 1.0},
+        {"name": "Autosport F1", "url": "https://www.autosport.com/rss/f1/news/", "weight": 1.0},
+        {"name": "BBC Sport F1", "url": "https://feeds.bbci.co.uk/sport/formula1/rss.xml", "weight": 0.9},
+        {"name": "The Race", "url": "https://the-race.com/feed/", "weight": 0.9}
+      ]
+    },
+    "tech": {
+      "label": "数码科技",
+      "top_n": 3,
+      "keywords": [
+        "iphone", "android", "ai", "artificial intelligence", "chip",
+        "nvidia", "apple", "google", "microsoft", "samsung", "xiaomi",
+        "huawei", "release", "launch", "security", "vulnerability",
+        "smartphone", "laptop", "robot", "openai", "deepseek", "gemini",
+        "tiktok", "news"
+      ],
+      "sources": [
+        {"name": "The Verge", "url": "https://www.theverge.com/rss/index.xml", "weight": 1.0},
+        {"name": "TechCrunch", "url": "https://techcrunch.com/feed/", "weight": 0.9},
+        {"name": "IT之家", "url": "https://www.ithome.com/rss/", "weight": 1.0},
+        {"name": "少数派", "url": "https://sspai.com/feed", "weight": 0.9}
+      ]
+    }
+  },
+  "window_hours": 24,
+  "history_days": 30,
+  "model": "deepseek-v4-flash",
+  "api_base": "https://api.deepseek.com",
+  "output_dir": "output",
+  "state_file": "state/history.json",
+  "preview_prefix": "briefing_"
+}

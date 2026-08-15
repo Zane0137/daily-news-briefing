@@ -1,0 +1,25 @@
+name: 保活
+
+on:
+  schedule:
+    # 每周一 03:00 UTC（北京时间 11:00），防止公开仓库 60 天无活动后定时被暂停
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 空提交保活
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "chore: keep-alive" || true
+          git push
