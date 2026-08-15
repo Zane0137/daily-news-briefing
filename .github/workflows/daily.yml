@@ -18,10 +18,10 @@ jobs:
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 恢复历史记录（缓存）
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: state/history.json
           key: briefing-history-${{ github.run_id }}
@@ -32,7 +32,7 @@ jobs:
 
       - name: 保存历史记录（缓存）
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: state/history.json
           key: briefing-history-${{ github.run_id }}

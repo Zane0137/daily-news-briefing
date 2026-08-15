@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: 拉取代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 空提交保活
         run: |
