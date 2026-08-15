@@ -315,7 +315,8 @@ def summarize_with_deepseek(title, excerpt, config, api_key, retries=2):
     """返回 (中文标题, 中文摘要)；彻底失败返回 None（由调用方跳过该条）。"""
     retries = 1
     target = int(config.get("summary_chars", 60))
-    hard_max = target + 5  # 60 字左右，上下浮动不超过 5 字
+    low = max(55, target - 5)
+    hard_max = target + 5  # 目标字数左右，上下浮动不超过 5 字
     system = (
         "你是中文新闻编辑。请把下面这条新闻的标题翻译成中文，并用你自己的话写一句"
         "中文摘要：概括最核心的事实，不要照抄原标题或原文的句子，不要使用省略号，"
@@ -323,7 +324,7 @@ def summarize_with_deepseek(title, excerpt, config, api_key, retries=2):
         "标题和摘要都只用中文（专有名词如 F1、AI 可保留）。"
         "只输出 JSON：{{\"title_cn\": \"中文标题\", \"summary\": \"中文摘要\"}}，"
         "不要输出任何其他内容。"
-    ).format(target, max(55, target - 5), hard_max)
+    ).format(low, hard_max)
     user = "原标题：{}\n正文：{}".format(title, truncate(excerpt or "（无正文摘要）", 400))
     payload = {
         "model": config.get("model", "deepseek-v4-flash"),
@@ -333,7 +334,7 @@ def summarize_with_deepseek(title, excerpt, config, api_key, retries=2):
         ],
         "thinking": {"type": "disabled"},
         "temperature": 0.3,
-        "max_tokens": 200,
+        "max_tokens": 600,
     }
 
     def parse_response(data):
@@ -356,10 +357,9 @@ def summarize_with_deepseek(title, excerpt, config, api_key, retries=2):
             return None
         try:
             title_cn, summary = parse_response(_deepseek_post(config, payload, api_key))
-            low = max(55, target - 5)
             if low <= len(summary) <= hard_max:
                 return title_cn, summary
-            # 字数不合规：重写一次压回 55~65 字（不截断、不加省略号）
+            # 字数不合规：重写一次压回要求字数（不截断、不加省略号）
             rewrite_user = (
                 "原标题：{}\n正文：{}\n\n上一次摘要 {} 个字，字数不符合要求。"
                 "请重写为 {}～{} 字的一句话：字数不足就补充关键细节，太长就精简；"

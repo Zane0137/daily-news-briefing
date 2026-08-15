@@ -53,7 +53,7 @@
   },
   "window_hours": 24,
   "history_days": 30,
-  "summary_chars": 60,
+  "summary_chars": 300,
   "model": "deepseek-v4-flash",
   "api_base": "https://api.deepseek.com",
   "f1_race_day": {
@@ -73,8 +73,8 @@
       "race": 2,
       "sprint_qualifying": 1
     },
-    "max_chars": 140,
-    "ai_summary_max_chars": 30,
+    "max_chars": 300,
+    "ai_summary_max_chars": 100,
     "mclaren_drivers": [
       "Norris",
       "Piastri"

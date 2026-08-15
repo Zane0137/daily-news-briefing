@@ -287,7 +287,7 @@ def build_report(config, session, facts, news_items, api_key, use_ai=True):
     """组装单场短信友好简报（纯文本）。
 
     长度策略：核心（标题+领奖台+McLaren 排名）绝不删除；超限时先裁 AI 总结，
-    再裁积分段。目标 100~180 字，硬上限 max_chars（默认 220）。
+    再裁积分段。硬上限 max_chars（默认 300）。
     """
     cfg = _f1_cfg(config)
     max_chars = int(cfg.get("max_chars", 220))
