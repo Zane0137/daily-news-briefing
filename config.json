@@ -81,12 +81,16 @@
     ]
   },
   "sms": {
-    "enabled": false,
-    "provider": "http_json",
+    "enabled": true,
+    "provider": "bark",
     "endpoint": "",
     "sign": "",
     "max_chars": 320,
-    "timeout_seconds": 15
+    "timeout_seconds": 15,
+    "bark": {
+      "title": "每日简报",
+      "group": "每日简报"
+    }
   },
   "smtp": {"enabled": true, "host": "smtp.163.com", "port": 465},
   "output_dir": "output",

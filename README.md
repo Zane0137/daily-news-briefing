@@ -2,7 +2,8 @@
 
 每天 20:07（北京时间）自动抓取 F1、数码科技、国际要闻三类新闻，去重、筛选、
 用 DeepSeek 做中文总结（标题也翻译成中文，摘要严格 60 字左右、上下浮动不超过 5 字），
-生成适合手机阅读的短信文本，并自动发到你的邮箱预览。**短信发送为后续阶段。**
+生成适合手机阅读的纯文本，自动发到你的邮箱预览，并可通过 Bark（iPhone 免费推送）
+通知到手机。**运营商短信为后续阶段。**
 
 ## 隐私红线（重要）
 
@@ -19,6 +20,7 @@
 | `main.py` | 主流程：抓取 -> 24 小时过滤 -> 规则去重 -> 评分 -> AI 辅助去重/排序 -> DeepSeek 总结 -> 生成预览文件 |
 | `config.json` | 新闻源、每栏条数、关键词、模型名等配置（改配置不用改代码） |
 | `tools/check_sources.py` | 阶段 0 工具：实测每个新闻源是否可用 |
+| `sms_sender.py` | 通知适配层：邮件之外的第二出口（当前为 Bark 推送），失败不影响邮件 |
 | `.github/workflows/daily.yml` | 云端定时（每天 20:07）+ 手动触发按钮 |
 | `.github/workflows/keepalive.yml` | 每周一次空提交，防止定时任务被 GitHub 暂停 |
 | `.env.example` | DeepSeek API Key 的填写模板 |
@@ -97,15 +99,32 @@ python main.py --check-model
 - F1 API 失败不影响普通新闻简报；DeepSeek 失败输出事实型兜底简报。
 - 所有参数在 `config.json` 的 `f1_race_day` 配置块中。
 
-## 短信发送（出口已就绪，服务商待接入）
+## Bark 推送（iPhone 免费通知，第二出口）
 
-- 短信与邮件同源（同一份简报文本），邮件先行、短信随后；**短信失败绝不影响邮件**。
-- 邮件与短信可独立开关：`config.json` 的 `smtp.enabled` / `sms.enabled`。
-- 短信内容为纯文本（无 URL、无表格）；超过 `sms.max_chars`（默认 320）时自动裁剪：
+通知与邮件同源（同一份简报文本），邮件先行、Bark 随后；**Bark 失败绝不影响邮件**。
+邮件与 Bark 可独立开关：`config.json` 的 `smtp.enabled` / `sms.enabled`。
+
+Bark 是 iPhone 上的免费推送 App，不是运营商短信：无需注册、不按条收费，
+但手机需要联网（Wi-Fi 或流量）并允许通知权限才能收到。
+
+### 第一次使用（只需一次）
+
+1. iPhone 上打开 App Store，搜索并安装 **Bark**（免费）。
+2. 打开 Bark，首页会显示形如 `https://api.day.app/xxxx-xxxx-xxxx/` 的地址，
+   复制中间 `xxxx-xxxx-xxxx` 那一段（不是完整网址）。
+3. 本地测试：把 `BARK_KEY=<那段key>` 加进项目里的 `.env`（已被 git 忽略，不会上传）。
+4. 云端：到 GitHub 仓库 Settings -> Secrets and variables -> Actions，
+   添加一个密钥 `BARK_KEY`（填同一段 key）。
+
+内容规则：
+
+- 推送正文为纯文本（无 URL、无表格）；超过 `sms.max_chars`（默认 320）时自动裁剪：
   **F1 比赛日简报完整保留**，剩余空间按 F1 速报 -> 数码科技 -> 国际要闻 顺序填充。
-- 敏感信息只放 GitHub Secrets：`SMS_PHONE`、`SMS_API_KEY`、`SMS_API_SECRET`。
-- 当前 `sms.endpoint` 为空，模块自动跳过（日志显示 `SMS：未配置（跳过）`）。
-  选定服务商后：填写 `config.json` 的 `sms.endpoint` / `sign`，并在 GitHub 配置 3 个 Secrets。
+- 密钥只放 GitHub Secrets / 本地 `.env`，绝不进代码、config.json 或日志。
+- 云端日志只会显示 `SMS：已发送到手机` 或失败原因，不显示 key 与正文。
+
+如果想用真正的运营商短信（会产生费用），后续可以再加服务商适配，
+现有 `sms_sender.py` 结构已预留，不用改主流程。
 
 ### 163 邮箱设置步骤（当前默认）
 
@@ -140,9 +159,9 @@ python main.py --check-model
 
 ## 费用
 
-- 当前阶段：0 元（不注册短信、不充值）。
+- 当前阶段：0 元（Bark 免费，不注册短信、不充值）。
 - DeepSeek：每天几次调用，约几分钱（模型 `deepseek-v4-flash`）。
-- 短信（未来阶段）：预计每天 0.1～0.3 元。
+- 运营商短信（未来可选阶段）：预计每天 0.1～0.3 元。
 
 ## 常见问题
 

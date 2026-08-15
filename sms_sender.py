@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""SMS 短信发送适配层（纯标准库，独立于邮件）。
+"""通知发送适配层（纯标准库，独立于邮件）。
 
 约定：
 - send_sms() 永不抛异常：返回 None=未配置跳过 / True=成功 / str=失败原因。
 - 敏感信息（手机号、API Key、Secret）只从环境变量读取，绝不写入日志。
-- 服务商通过 config.json 的 sms 块配置；endpoint 为空时自动跳过，不产生请求。
+- 服务商通过 config.json 的 sms 块配置；未配置对应密钥时自动跳过，不产生请求。
 - 短信内容为纯文本；超过 sms.max_chars（默认 320）时按优先级裁剪：
   F1 比赛日特别简报（完整保留，永不截断）-> F1 速报 -> 数码科技 -> 国际要闻。
 """
 
 import json
 import os
+import urllib.parse
 import urllib.error
 import urllib.request
 
@@ -152,8 +153,51 @@ def _send_http_json(config, text):
     return True
 
 
+def _send_bark(config, text):
+    """Bark（iPhone 免费推送）适配器。
+
+    发送方式：GET https://api.day.app/<key>/<标题>/<正文>?group=分组
+    设备 key 从环境变量 BARK_KEY 读取（对应 GitHub Secrets / 本地 .env），
+    不写入 config.json、代码或日志。
+    """
+    sms = _sms_cfg(config)
+    key = (os.environ.get("BARK_KEY") or "").strip()
+    if not key:
+        raise ValueError("BARK_KEY not configured")
+    bark = sms.get("bark", {}) or {}
+    title = (bark.get("title") or "每日简报").strip()
+    group = (bark.get("group") or "每日简报").strip()
+    timeout = float(sms.get("timeout_seconds", 15) or 15)
+
+    path = "/{}/{}/{}".format(
+        urllib.parse.quote(key, safe=""),
+        urllib.parse.quote(title, safe=""),
+        urllib.parse.quote(text, safe=""),
+    )
+    url = "https://api.day.app" + path
+    if group:
+        url += "?group=" + urllib.parse.quote(group, safe="")
+    req = urllib.request.Request(
+        url,
+        method="GET",
+        headers={"User-Agent": "Mozilla/5.0 (compatible; DailyNewsBriefing/1.0)"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        body = resp.read().decode("utf-8", "replace")
+    # Bark 即使设备 key 不存在也可能返回 HTTP 200，必须校验响应里的 code
+    try:
+        data = json.loads(body)
+        code = int(data.get("code", -1))
+    except Exception:
+        code = -1
+    if code != 200:
+        raise ValueError("Bark response code {}".format(code))
+    return True
+
+
 _PROVIDERS = {
     "http_json": _send_http_json,
+    "bark": _send_bark,
 }
 
 
@@ -163,21 +207,26 @@ def _safe_error(exc):
         return "HTTP {} {}".format(exc.code, exc.reason)
     if isinstance(exc, urllib.error.URLError):
         return "connection failed"
+    if isinstance(exc, ValueError):
+        return str(exc)
     return type(exc).__name__
 
 
 def send_sms(config, text):
-    """短信发送入口（永不抛异常）。"""
+    """通知发送入口（永不抛异常）。"""
     sms = _sms_cfg(config)
     if not sms.get("enabled", False):
         return None
-    endpoint = (sms.get("endpoint") or "").strip()
-    if not endpoint:
-        return None  # 未配置服务商，跳过
     provider = sms.get("provider", "http_json")
     sender = _PROVIDERS.get(provider)
     if sender is None:
         return "unknown provider: {}".format(provider)
+    if provider == "bark":
+        if not (os.environ.get("BARK_KEY") or "").strip():
+            return None  # 未配置 Bark 设备 key，跳过
+    else:
+        if not (sms.get("endpoint") or "").strip():
+            return None  # 未配置服务商 endpoint，跳过
     fmt_text, _dropped = format_sms_text(config, text)
     try:
         sender(config, fmt_text)

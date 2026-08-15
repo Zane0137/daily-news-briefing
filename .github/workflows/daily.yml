@@ -19,9 +19,7 @@ jobs:
       SMTP_USER: ${{ secrets.SMTP_USER }}
       SMTP_PASS: ${{ secrets.SMTP_PASS }}
       SMTP_TO: ${{ secrets.SMTP_TO }}
-      SMS_PHONE: ${{ secrets.SMS_PHONE }}
-      SMS_API_KEY: ${{ secrets.SMS_API_KEY }}
-      SMS_API_SECRET: ${{ secrets.SMS_API_SECRET }}
+      BARK_KEY: ${{ secrets.BARK_KEY }}
     steps:
       - name: 拉取代码
         uses: actions/checkout@v5
