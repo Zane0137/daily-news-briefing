@@ -90,7 +90,7 @@ python main.py --check-model
 
 - 若最近 24 小时内有**已结束**的排位赛 / 冲刺赛 / 正赛，按结束时间升序为每场生成一份
   短信友好简报（约 100~180 字，硬上限 220 字），追加到同一封邮件末尾，不另发邮件。
-- 只显示 P1/P2/P3 + 迈凯伦（Norris/Piastri）名次与本场积分，不输出完整前十。
+- 只显示 P1/P2/P3 + 迈凯伦（Norris/Piastri）名次与一句话总结，不输出完整前十。
 - 事实全部来自 Jolpica API；DeepSeek 只负责中文译名与一句话总结，不生成名次。
 - 同一 Session 只生成一次（ID 如 `2026-11-Race`），重复运行显示 `Duplicate: skipped`。
 - SprintQualifying 与练习赛只识别不生成（Jolpica 暂无 SprintQualifying 结果接口）。

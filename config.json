@@ -74,7 +74,7 @@
       "sprint_qualifying": 1
     },
     "max_chars": 140,
-    "ai_summary_max_chars": 100,
+    "ai_summary_max_chars": 30,
     "mclaren_drivers": [
       "Norris",
       "Piastri"

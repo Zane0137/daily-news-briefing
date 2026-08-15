@@ -325,12 +325,6 @@ def build_report(config, session, facts, news_items, api_key, use_ai=True):
                 pos += "（退赛）"
             mclaren_lines.append("{} {}".format(r["driver"], pos))
 
-    points_lines = []
-    if session["session_type"] in ("sprint", "race") and mclaren_rows:
-        points_lines.append("📊 积分：")
-        for r in mclaren_rows:
-            points_lines.append("{} +{}".format(r["driver"], r["points"]))
-
     summary_lines = ["📝 " + summary] if summary else []
 
     text = title_line + "\n" + "\n".join(podium_lines)
@@ -339,10 +333,6 @@ def build_report(config, session, facts, news_items, api_key, use_ai=True):
     # 核心部分（标题+领奖台+McLaren）很短，正常不会超限；仍做硬保护
     if len(text) > max_chars:
         return text[:max_chars].rstrip()
-    if points_lines:
-        candidate = text + "\n\n" + "\n".join(points_lines)
-        if len(candidate) <= max_chars:
-            text = candidate
     if summary_lines:
         candidate = text + "\n\n" + "\n".join(summary_lines)
         if len(candidate) <= max_chars:
