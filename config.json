@@ -39,7 +39,7 @@
   "history_days": 30,
   "model": "deepseek-v4-flash",
   "api_base": "https://api.deepseek.com",
-  "smtp": {"host": "smtp.mail.me.com", "port": 587},
+  "smtp": {"host": "smtp.163.com", "port": 465},
   "output_dir": "output",
   "state_file": "state/history.json",
   "preview_prefix": "briefing_"

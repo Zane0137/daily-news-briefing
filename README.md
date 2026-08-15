@@ -83,27 +83,28 @@ python main.py --check-model
 
 云端每天生成简报后，会自动发到你的邮箱，不用开电脑也能看到。
 
-### iCloud 设置步骤（当前默认）
+### 163 邮箱设置步骤（当前默认）
 
-1. 打开 https://appleid.apple.com 并登录你的 Apple 账号。
-2. 点"登录与安全"（Sign-In and Security）->"App 专用密码"（App-Specific Passwords），
-   生成一个专用密码（标签随便填，如 `news-briefing`），复制这串 16 位密码。
+1. 电脑浏览器打开 https://mail.163.com 登录你的 163 邮箱。
+2. 点顶部"设置"-> 左侧选 **POP3/SMTP/IMAP** -> 开启 **SMTP 服务**（按提示用绑定手机发一条
+   短信验证），会得到一个 **16 位授权码**，复制保存（这不是登录密码）。
 3. 到 GitHub 仓库 Settings -> Secrets and variables -> Actions，添加 3 个密钥：
 
 | 密钥名 | 填什么 |
 |---|---|
-| `SMTP_USER` | 你的 iCloud 完整邮箱（如 `you@icloud.com`） |
-| `SMTP_PASS` | 上面生成的 16 位应用专用密码 |
+| `SMTP_USER` | 你的 163 完整邮箱（如 `you@163.com`） |
+| `SMTP_PASS` | 上面生成的 16 位授权码 |
 | `SMTP_TO` | 收件邮箱（通常和 `SMTP_USER` 一样） |
 
 4. 在 Actions 页面重新点一次 **Run workflow**，等运行完去邮箱查收"【每日简报】"邮件。
 
-### 如果以后改用 Gmail 或 Outlook
+### 如果以后改用其他邮箱
 
 只需改 `config.json` 里的 `smtp.host`，并换对应的"专用密码"：
 
 | 邮箱 | 服务器 | 端口 | 密码 |
 |---|---|---|---|
+| 163（默认） | smtp.163.com | 465 | 16 位授权码 |
 | Gmail | smtp.gmail.com | 587 | Google 应用专用密码 |
 | iCloud | smtp.mail.me.com | 587 | Apple 专用密码（appleid.apple.com 生成） |
 | Outlook | smtp.office365.com | 587 | Microsoft 应用密码（需开启两步验证） |
