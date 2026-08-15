@@ -11,9 +11,7 @@
 """
 
 import json
-import hashlib
 import os
-import urllib.parse
 import urllib.error
 import urllib.request
 
@@ -154,77 +152,13 @@ def _send_http_json(config, text):
     return True
 
 
-_SMSBAO_ERRORS = {
-    "-1": "参数不全",
-    "30": "密码错误",
-    "40": "账号不存在",
-    "41": "余额不足",
-    "42": "账号已过期",
-    "43": "IP 受限",
-    "50": "内容含敏感词",
-    "51": "手机号不正确",
-    "52": "内容过长",
-    "53": "发送频率过快",
-}
-
-
-class ProviderError(Exception):
-    """服务商返回的业务错误（只含错误码与说明，不含手机号/密钥/正文）。"""
-
-    def __init__(self, provider, code, message):
-        super().__init__(message)
-        self.provider = provider
-        self.code = code
-        self.message = message
-
-
-def _smsbao_url(config, text):
-    """构造短信宝发送 URL（纯函数，便于测试）。"""
-    sms = _sms_cfg(config)
-    user = (os.environ.get("SMS_BAO_USER") or "").strip()
-    password = (os.environ.get("SMS_BAO_PASS") or "").strip()
-    apikey = (os.environ.get("SMS_BAO_APIKEY") or "").strip()
-    phone = (os.environ.get("SMS_PHONE") or "").strip()
-    if not user:
-        raise ValueError("SMS_BAO_USER not configured")
-    if not phone:
-        raise ValueError("SMS_PHONE not configured")
-    if not password and not apikey:
-        raise ValueError("SMS_BAO_PASS or SMS_BAO_APIKEY not configured")
-    p = apikey if apikey else hashlib.md5(password.encode("utf-8")).hexdigest()
-    params = {"u": user, "p": p, "m": phone, "c": text}
-    timeout = float(sms.get("timeout_seconds", 15) or 15)
-    endpoint = os.environ.get("SMS_BAO_ENDPOINT") or "https://api.smsbao.com/sms"
-    return endpoint + "?" + urllib.parse.urlencode(params), timeout
-
-
-def _send_smsbao(config, text):
-    """短信宝国内短信发送（GET 接口，返回 0 表示提交成功）。"""
-    url, timeout = _smsbao_url(config, text)
-    req = urllib.request.Request(
-        url, headers={"User-Agent": "Mozilla/5.0 (compatible; DailyNewsBriefing/1.0)"}
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        body = resp.read().decode("utf-8", errors="replace").strip()
-    first = body.splitlines()[0].strip() if body else ""
-    if first == "0":
-        return True
-    meaning = _SMSBAO_ERRORS.get(first, "未知错误")
-    raise ProviderError("短信宝", first, meaning)
-
-
 _PROVIDERS = {
     "http_json": _send_http_json,
-    "smsbao": _send_smsbao,
 }
 
 
 def _safe_error(exc):
     """把异常转成不含手机号/密钥的简短错误描述。"""
-    if isinstance(exc, ProviderError):
-        return "{}错误码 {}（{}）".format(exc.provider, exc.code, exc.message)
-    if isinstance(exc, ValueError):
-        return "配置错误：{}".format(str(exc)[:100])
     if isinstance(exc, urllib.error.HTTPError):
         return "HTTP {} {}".format(exc.code, exc.reason)
     if isinstance(exc, urllib.error.URLError):
@@ -237,9 +171,10 @@ def send_sms(config, text):
     sms = _sms_cfg(config)
     if not sms.get("enabled", False):
         return None
+    endpoint = (sms.get("endpoint") or "").strip()
+    if not endpoint:
+        return None  # 未配置服务商，跳过
     provider = sms.get("provider", "http_json")
-    if provider == "http_json" and not (sms.get("endpoint") or "").strip():
-        return None  # 通用 HTTP 服务商未配置 endpoint，跳过
     sender = _PROVIDERS.get(provider)
     if sender is None:
         return "unknown provider: {}".format(provider)

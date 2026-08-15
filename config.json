@@ -82,7 +82,7 @@
   },
   "sms": {
     "enabled": false,
-    "provider": "smsbao",
+    "provider": "http_json",
     "endpoint": "",
     "sign": "",
     "max_chars": 320,

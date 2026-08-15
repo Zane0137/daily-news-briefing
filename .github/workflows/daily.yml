@@ -22,9 +22,6 @@ jobs:
       SMS_PHONE: ${{ secrets.SMS_PHONE }}
       SMS_API_KEY: ${{ secrets.SMS_API_KEY }}
       SMS_API_SECRET: ${{ secrets.SMS_API_SECRET }}
-      SMS_BAO_USER: ${{ secrets.SMS_BAO_USER }}
-      SMS_BAO_PASS: ${{ secrets.SMS_BAO_PASS }}
-      SMS_BAO_APIKEY: ${{ secrets.SMS_BAO_APIKEY }}
     steps:
       - name: 拉取代码
         uses: actions/checkout@v5
