@@ -21,6 +21,7 @@ import html
 import json
 import os
 import re
+import socket
 import smtplib
 import sys
 import time
@@ -35,6 +36,9 @@ from email.mime.text import MIMEText
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(PROJECT_ROOT, "config.json")
 ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
+RUN_START = time.monotonic()
+RUN_BUDGET_SECONDS = 420  # 单次运行总预算 7 分钟，超时自动收尾，避免无限等待
+socket.setdefaulttimeout(10)  # 兜底：任何网络操作默认最多等 10 秒
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
@@ -84,7 +88,7 @@ def load_config(path=CONFIG_PATH):
 
 # ----------------------------- 抓取 RSS -----------------------------
 
-def fetch_feed(url, timeout=15):
+def fetch_feed(url, timeout=10):
     req = urllib.request.Request(
         url,
         headers={
@@ -101,9 +105,11 @@ def fetch_feed(url, timeout=15):
     return data
 
 
-def fetch_feed_with_retry(url, tries=2, timeout=15):
+def fetch_feed_with_retry(url, tries=2, timeout=10):
     last_error = None
     for attempt in range(tries):
+        if time.monotonic() - RUN_START > RUN_BUDGET_SECONDS:
+            raise RuntimeError("overall time budget exceeded")
         try:
             return fetch_feed(url, timeout=timeout)
         except Exception as exc:
@@ -285,7 +291,7 @@ def truncate(text, limit):
     return text if len(text) <= limit else text[:limit] + "…"
 
 
-def _deepseek_post(config, payload, api_key, timeout=30):
+def _deepseek_post(config, payload, api_key, timeout=25):
     url = config.get("api_base", "https://api.deepseek.com").rstrip("/") + "/chat/completions"
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
@@ -304,6 +310,7 @@ def _deepseek_post(config, payload, api_key, timeout=30):
 
 def summarize_with_deepseek(title, excerpt, config, api_key, retries=2):
     """返回 (中文标题, 中文摘要)；彻底失败返回 None（由调用方用原标题兜底）。"""
+    retries = 1
     target = int(config.get("summary_chars", 63))
     system = (
         "你是中文新闻编辑。请把下面这条新闻的标题翻译成中文，并写一句中文摘要。"
@@ -325,11 +332,14 @@ def summarize_with_deepseek(title, excerpt, config, api_key, retries=2):
         "max_tokens": 400,
     }
     for attempt in range(retries + 1):
+        if time.monotonic() - RUN_START > RUN_BUDGET_SECONDS:
+            return None
         try:
             data = _deepseek_post(config, payload, api_key)
             content = data["choices"][0]["message"]["content"].strip()
             if not content:
                 raise ValueError("empty content")
+            match = re.search(r"\{.*\}", content, re.S)
             match = re.search(r"\{.*\}", content, re.S)
             if not match:
                 raise ValueError("no json in response")
@@ -351,6 +361,7 @@ def ai_merge_and_rank(config, api_key, sec_cfg, candidates, top_n, retries=2):
 
     返回保留的候选下标（按优先级排列）；失败返回 None，由调用方退回规则结果。
     """
+    retries = 1
     lines = []
     for i, it in enumerate(candidates, 1):
         lines.append(
@@ -373,6 +384,8 @@ def ai_merge_and_rank(config, api_key, sec_cfg, candidates, top_n, retries=2):
         "max_tokens": 200,
     }
     for attempt in range(retries + 1):
+        if time.monotonic() - RUN_START > RUN_BUDGET_SECONDS:
+            return None
         try:
             data = _deepseek_post(config, payload, api_key)
             content = data["choices"][0]["message"]["content"].strip()
@@ -498,9 +511,9 @@ def send_preview_email(body, config):
     msg["To"] = to_addr
     try:
         if port == 465:
-            server = smtplib.SMTP_SSL(host, port, timeout=30)
+            server = smtplib.SMTP_SSL(host, port, timeout=20)
         else:
-            server = smtplib.SMTP(host, port, timeout=30)
+            server = smtplib.SMTP(host, port, timeout=20)
             server.starttls()
         server.login(user, password)
         server.sendmail(user, [to_addr], msg.as_string())
