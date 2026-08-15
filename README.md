@@ -79,6 +79,40 @@ python main.py --check-model
 
 定时已内置：每天 20:07 北京时间自动运行（cron `7 12 * * *`，UTC）。连续观察一周即可。
 
+## 邮件预览（可选，推荐先用它代替短信）
+
+云端每天生成简报后，会自动发到你的邮箱，不用开电脑也能看到。
+
+### Gmail 设置步骤（推荐）
+
+1. 打开 https://myaccount.google.com/security ，开启"两步验证"（2-Step Verification）。
+2. 打开 https://myaccount.google.com/apppasswords ，应用名随便填（如 `news-briefing`），
+   生成后会得到一个 16 位"应用专用密码"（App Password，形如 `xxxx xxxx xxxx xxxx`）。
+3. 到 GitHub 仓库 Settings -> Secrets and variables -> Actions，添加 3 个密钥：
+
+| 密钥名 | 填什么 |
+|---|---|
+| `SMTP_USER` | 你的 Gmail 完整地址（如 `you@gmail.com`） |
+| `SMTP_PASS` | 上面生成的 16 位应用专用密码（把空格去掉也行） |
+| `SMTP_TO` | 收件邮箱（通常和 `SMTP_USER` 一样） |
+
+4. 在 Actions 页面重新点一次 **Run workflow**，等运行完去邮箱查收"【每日简报】"邮件。
+
+### 如果用 iCloud 或 Outlook
+
+只需改 `config.json` 里的 `smtp.host`，并换对应的"专用密码"：
+
+| 邮箱 | 服务器 | 端口 | 密码 |
+|---|---|---|---|
+| Gmail | smtp.gmail.com | 587 | Google 应用专用密码 |
+| iCloud | smtp.mail.me.com | 587 | Apple 专用密码（appleid.apple.com 生成） |
+| Outlook | smtp.office365.com | 587 | Microsoft 应用密码（需开启两步验证） |
+
+### 本地测试邮件
+
+在 `.env` 里加上 `SMTP_USER`、`SMTP_PASS`、`SMTP_TO` 后运行 `python main.py` 即可。
+收件地址和密码永远不会出现在日志里。
+
 ## 费用
 
 - 当前阶段：0 元（不注册短信、不充值）。

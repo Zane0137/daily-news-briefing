@@ -21,6 +21,7 @@ import html
 import json
 import os
 import re
+import smtplib
 import sys
 import time
 import urllib.error
@@ -28,6 +29,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
+from email.header import Header
+from email.mime.text import MIMEText
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(PROJECT_ROOT, "config.json")
@@ -457,6 +460,43 @@ def estimate_segments(text):
     return max(1, (len(text) + 69) // 70)
 
 
+def send_preview_email(body, config):
+    """把简报通过 SMTP 发到自己的邮箱（免费预览用）。
+
+    未配置 SMTP 环境变量时返回 None（跳过）；发送成功返回 True；失败返回 False。
+    收件地址、密码来自环境变量（GitHub Secrets 或本地 .env），绝不打印。
+    """
+    user = os.environ.get("SMTP_USER", "")
+    password = os.environ.get("SMTP_PASS", "")
+    to_addr = os.environ.get("SMTP_TO", "") or user
+    if not user or not password or not to_addr:
+        return None
+    host = os.environ.get("SMTP_HOST", "") or config.get("smtp", {}).get("host", "smtp.gmail.com")
+    try:
+        port = int(os.environ.get("SMTP_PORT", "") or config.get("smtp", {}).get("port", 587))
+    except (TypeError, ValueError):
+        port = 587
+    subject = "【每日简报】{} {}".format(
+        beijing_now().strftime("%Y-%m-%d"), WEEKDAY_CN[beijing_now().weekday()]
+    )
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = Header(subject, "utf-8")
+    msg["From"] = user
+    msg["To"] = to_addr
+    try:
+        if port == 465:
+            server = smtplib.SMTP_SSL(host, port, timeout=30)
+        else:
+            server = smtplib.SMTP(host, port, timeout=30)
+            server.starttls()
+        server.login(user, password)
+        server.sendmail(user, [to_addr], msg.as_string())
+        server.quit()
+        return True
+    except Exception:
+        return False
+
+
 # ----------------------------- 主流程 -----------------------------
 
 def run(config, use_ai=True, state_path=None):
@@ -578,6 +618,14 @@ def run(config, use_ai=True, state_path=None):
         f.write(briefing)
     stats.append(" 预览文件已保存：{}".format(preview_path))
     stats.append(" 预计短信段数（仅供参考，当前阶段不发送）：{} 段".format(estimate_segments(briefing)))
+
+    email_result = send_preview_email(briefing, config)
+    if email_result is None:
+        stats.append(" 邮件预览：未配置（跳过）")
+    elif email_result:
+        stats.append(" 邮件预览：已发送到你的邮箱")
+    else:
+        stats.append(" 邮件预览：发送失败（不影响本地预览文件）")
 
     # 写历史记录（仅真实运行模式；--no-ai 测试模式不占用新闻）
     if use_ai:
