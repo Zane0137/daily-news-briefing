@@ -240,8 +240,10 @@ def _ask_deepseek(config, facts, need_names, news_items, api_key, summary_max):
         "请只输出 JSON，不要输出任何其他内容：\n"
         "{{\"race_name_cn\": \"站名中文（如：匈牙利大奖赛）\", "
         "\"names\": {{\"Norris\": \"诺里斯\"}}, "
-        "\"summary\": \"{summary_max}字以内的一句话中文总结，结合赛果与新闻提炼重点，"
-        "不编造任何名次或事实\"}} "
+        "\"summary\": \"{summary_max}字以内的一句话，只讲本场重大事故/关键事件。"
+        "只能依据官方赛果中的完赛状态（如退赛、事故、碰撞、取消资格）和当天新闻中"
+        "明确提到的事件；不得猜测或补充新闻中未提供的信息（如安全车次数、撞车过程）。"
+        "如果没有事故就写：比赛平稳，无重大事故。不要重复 P1/P2/P3 排名\"}} "
         "其中 names 的键必须严格使用以下英文姓氏，且每个键给出中文译名：{keys}"
     ).format(
         facts="\n".join(fact_lines), news=news_text,
@@ -325,7 +327,7 @@ def build_report(config, session, facts, news_items, api_key, use_ai=True):
                 pos += "（退赛）"
             mclaren_lines.append("{} {}".format(r["driver"], pos))
 
-    summary_lines = ["📝 " + summary] if summary else []
+    summary_lines = ["📝 事故：" + summary] if summary else []
 
     text = title_line + "\n" + "\n".join(podium_lines)
     if mclaren_lines:
