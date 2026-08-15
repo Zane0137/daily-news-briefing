@@ -85,7 +85,7 @@
     "provider": "bark",
     "endpoint": "",
     "sign": "",
-    "max_chars": 320,
+    "max_chars": 1500,
     "timeout_seconds": 15,
     "bark": {
       "title": "每日简报",

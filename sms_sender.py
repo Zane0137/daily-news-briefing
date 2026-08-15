@@ -173,7 +173,8 @@ def _bark_key_from_env():
 def _send_bark(config, text):
     """Bark（iPhone 免费推送）适配器。
 
-    发送方式：GET https://api.day.app/<key>/<标题>/<正文>?group=分组
+    发送方式：POST https://api.day.app/<key>/，表单字段 title/body/group
+    （POST 可容纳较长正文，不受 URL 长度限制）
     设备 key 从环境变量 BARK_KEY 读取（对应 GitHub Secrets / 本地 .env），
     不写入 config.json、代码或日志。
     """
@@ -186,18 +187,18 @@ def _send_bark(config, text):
     group = (bark.get("group") or "每日简报").strip()
     timeout = float(sms.get("timeout_seconds", 15) or 15)
 
-    path = "/{}/{}/{}".format(
-        urllib.parse.quote(key, safe=""),
-        urllib.parse.quote(title, safe=""),
-        urllib.parse.quote(text, safe=""),
-    )
-    url = "https://api.day.app" + path
-    if group:
-        url += "?group=" + urllib.parse.quote(group, safe="")
+    url = "https://api.day.app/" + urllib.parse.quote(key, safe="")
+    data = urllib.parse.urlencode(
+        {"title": title, "body": text, "group": group}
+    ).encode("utf-8")
     req = urllib.request.Request(
         url,
-        method="GET",
-        headers={"User-Agent": "Mozilla/5.0 (compatible; DailyNewsBriefing/1.0)"},
+        data=data,
+        method="POST",
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
+            "User-Agent": "Mozilla/5.0 (compatible; DailyNewsBriefing/1.0)",
+        },
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         body = resp.read().decode("utf-8", "replace")
