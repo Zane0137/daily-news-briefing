@@ -190,22 +190,19 @@ def _atom_entry(node):
 
 
 def parse_feed(data):
-    """解析 RSS 2.0 或 Atom，返回条目列表。"""
+    """解析 RSS 1.0/2.0 或 Atom，返回条目列表（按元素名识别，兼容各种根标签）。"""
     root = ET.fromstring(data)
-    root_tag = localname(root.tag)
     items = []
-    if root_tag == "rss":
-        for node in root.iter():
-            if localname(node.tag) == "item":
-                item = _rss_item(node)
-                if item:
-                    items.append(item)
-    elif root_tag == "feed":
-        for node in root.iter():
-            if localname(node.tag) == "entry":
-                item = _atom_entry(node)
-                if item:
-                    items.append(item)
+    for node in root.iter():
+        tag = localname(node.tag)
+        if tag == "item":
+            item = _rss_item(node)
+        elif tag == "entry":
+            item = _atom_entry(node)
+        else:
+            continue
+        if item:
+            items.append(item)
     return items
 
 
@@ -306,12 +303,17 @@ def _deepseek_post(config, payload, api_key, timeout=30):
 
 
 def summarize_with_deepseek(title, excerpt, config, api_key, retries=2):
-    """返回中文摘要；彻底失败返回 None（由调用方用原标题兜底）。"""
+    """返回 (中文标题, 中文摘要)；彻底失败返回 None（由调用方用原标题兜底）。"""
+    target = int(config.get("summary_chars", 63))
     system = (
-        "你是中文新闻编辑。请用 1～2 句话、不超过 100 字，用中文总结下面这条新闻的"
-        "核心信息。只输出总结本身，不要加标题、引号或任何多余内容，不要复制原文。"
-    )
-    user = "标题：{}\n内容：{}".format(title, truncate(excerpt or "（无正文摘要）", 800))
+        "你是中文新闻编辑。请把下面这条新闻的标题翻译成中文，并写一句中文摘要。"
+        "要求：摘要约 {} 个汉字（允许上下浮动 3 字）；内容具体明确，不要出现"
+        "'某一个人''某一个车队'这类含糊表述；标题和摘要都只用中文"
+        "（专有名词如 F1、AI 可保留）。"
+        "只输出 JSON：{{\"title_cn\": \"中文标题\", \"summary\": \"中文摘要\"}}，"
+        "不要输出任何其他内容。"
+    ).format(target)
+    user = "原标题：{}\n正文摘要：{}".format(title, truncate(excerpt or "（无正文摘要）", 800))
     payload = {
         "model": config.get("model", "deepseek-v4-flash"),
         "messages": [
@@ -320,7 +322,7 @@ def summarize_with_deepseek(title, excerpt, config, api_key, retries=2):
         ],
         "thinking": {"type": "disabled"},
         "temperature": 0.3,
-        "max_tokens": 300,
+        "max_tokens": 400,
     }
     for attempt in range(retries + 1):
         try:
@@ -328,7 +330,15 @@ def summarize_with_deepseek(title, excerpt, config, api_key, retries=2):
             content = data["choices"][0]["message"]["content"].strip()
             if not content:
                 raise ValueError("empty content")
-            return truncate(content, 120)
+            match = re.search(r"\{.*\}", content, re.S)
+            if not match:
+                raise ValueError("no json in response")
+            parsed = json.loads(match.group(0))
+            title_cn = (parsed.get("title_cn") or "").strip() or title
+            summary = (parsed.get("summary") or "").strip()
+            if not summary:
+                raise ValueError("empty summary")
+            return truncate(title_cn, 40), truncate(summary, target + 3)
         except Exception:
             if attempt < retries:
                 time.sleep(1 + attempt)
@@ -352,6 +362,9 @@ def ai_merge_and_rank(config, api_key, sec_cfg, candidates, top_n, retries=2):
         "2) 按重要程度从高到低排序。"
         "只输出 JSON：{{\"keep\": [序号...]}}，最多保留 {} 个序号，不要输出任何其他内容。\n\n{}"
     ).format(top_n, "\n".join(lines))
+    hint = sec_cfg.get("ai_hint", "")
+    if hint:
+        prompt = "额外要求：{}\n\n{}".format(hint, prompt)
     payload = {
         "model": config.get("model", "deepseek-v4-flash"),
         "messages": [{"role": "user", "content": prompt}],
@@ -449,7 +462,7 @@ def format_briefing(config, selected):
         items = selected.get(sec_key, [])
         lines.append("■ {}（{} 条）".format(sec_cfg.get("label", sec_key), len(items)))
         for index, item in enumerate(items, 1):
-            lines.append("{}. {}".format(index, item["title"]))
+            lines.append("{}. {}".format(index, item.get("title_cn") or item["title"]))
             lines.append(item["summary"])
             lines.append("")
     return "\n".join(lines).strip() + "\n"
@@ -594,15 +607,17 @@ def run(config, use_ai=True, state_path=None):
         # DeepSeek 中文总结
         for index, item in enumerate(chosen, 1):
             if use_ai:
-                summary = summarize_with_deepseek(
+                result = summarize_with_deepseek(
                     item["title"], item.get("excerpt", ""), config, api_key
                 )
-                if summary is None:
+                if result is None:
+                    item["title_cn"] = item["title"]
                     item["summary"] = item["title"]  # 原标题兜底
                     stats.append("  {}：第 {} 条总结失败，已用原标题兜底".format(sec_key, index))
                 else:
-                    item["summary"] = summary
+                    item["title_cn"], item["summary"] = result
             else:
+                item["title_cn"] = item["title"]
                 item["summary"] = "（AI 总结未启用，接入 DeepSeek Key 后自动生成）"
         selected[sec_key] = chosen
 

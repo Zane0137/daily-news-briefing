@@ -2,7 +2,7 @@
   "sections": {
     "f1": {
       "label": "F1 速报",
-      "top_n": 3,
+      "top_n": 1,
       "keywords": [
         "grand prix", "qualifying", "verstappen", "hamilton", "leclerc",
         "norris", "piastri", "russell", "sainz", "alonso", "ferrari",
@@ -19,7 +19,7 @@
     },
     "tech": {
       "label": "数码科技",
-      "top_n": 3,
+      "top_n": 1,
       "keywords": [
         "iphone", "android", "ai", "artificial intelligence", "chip",
         "nvidia", "apple", "google", "microsoft", "samsung", "xiaomi",
@@ -33,10 +33,25 @@
         {"name": "IT之家", "url": "https://www.ithome.com/rss/", "weight": 1.0},
         {"name": "少数派", "url": "https://sspai.com/feed", "weight": 0.9}
       ]
+    },
+    "world": {
+      "label": "国际要闻",
+      "top_n": 1,
+      "ai_hint": "优先选择涉及多个国家、国际关系、国际局势或全球议题的新闻；不要选单个国家的国内事务新闻。",
+      "keywords": [
+        "美国", "中国", "俄罗斯", "乌克兰", "中东", "以色列", "伊朗",
+        "选举", "总统", "峰会", "制裁", "外交", "冲突", "战争", "谈判",
+        "北约", "联合国", "朝鲜", "欧盟", "关税", "停火"
+      ],
+      "sources": [
+        {"name": "BBC中文", "url": "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml", "weight": 1.0},
+        {"name": "DW中文", "url": "https://rss.dw.com/rdf/rss-chi-all", "weight": 0.9}
+      ]
     }
   },
   "window_hours": 24,
   "history_days": 30,
+  "summary_chars": 63,
   "model": "deepseek-v4-flash",
   "api_base": "https://api.deepseek.com",
   "smtp": {"host": "smtp.163.com", "port": 465},
