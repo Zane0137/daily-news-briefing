@@ -61,7 +61,7 @@
     "api_base": "https://api.jolpi.ca/ergast/f1",
     "season": "current",
     "timezone": "Asia/Shanghai",
-    "lookback_hours": 24,
+    "lookback_hours": 30,
     "include": [
       "qualifying",
       "sprint",

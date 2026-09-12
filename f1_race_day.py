@@ -14,6 +14,7 @@ import json
 import os
 import re
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -46,12 +47,30 @@ def beijing_now():
     return now_utc() + timedelta(hours=8)
 
 
-def _http_get_json(url, timeout=15):
-    req = urllib.request.Request(
-        url, headers={"User-Agent": "Mozilla/5.0 (compatible; DailyNewsBriefing/1.0)"}
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.load(resp)
+def _http_get_json(url, timeout=30, retries=2):
+    """GET 并解析 JSON；失败自动重试（Jolpica 偶发变慢/超时，重试可自愈）。"""
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "Mozilla/5.0 (compatible; DailyNewsBriefing/1.0)"}
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.load(resp)
+        except Exception as exc:
+            last_exc = exc
+            if attempt < retries:
+                time.sleep(1 + attempt)
+    raise last_exc
+
+
+def _safe_err(exc):
+    """把异常转成简短的失败原因（不含敏感信息），便于云端日志定位。"""
+    if isinstance(exc, urllib.error.HTTPError):
+        return "HTTP {} {}".format(exc.code, exc.reason)
+    if isinstance(exc, urllib.error.URLError):
+        return "connection failed"
+    return type(exc).__name__
 
 
 def _parse_utc(value):
@@ -401,8 +420,8 @@ def maybe_run_f1(config, api_key, news_items, f1_history, use_ai=True):
 
     try:
         calendar = load_calendar(config)
-    except Exception:
-        stats.append("F1 calendar: FAIL")
+    except Exception as exc:
+        stats.append("F1 calendar: FAIL ({})".format(_safe_err(exc)))
         return None, stats, []
     stats.append("F1 calendar: OK")
 
@@ -433,8 +452,8 @@ def maybe_run_f1(config, api_key, news_items, f1_history, use_ai=True):
             continue
         try:
             facts = get_session_data(config, s["season"], s["round"], s["session_type"])
-        except Exception:
-            stats.append("Result API: FAIL, skipped")
+        except Exception as exc:
+            stats.append("Result API: FAIL ({}), skipped".format(_safe_err(exc)))
             continue
         stats.append("Result API: OK")
         report = build_report(config, s, facts, news_items, api_key, use_ai=use_ai)
