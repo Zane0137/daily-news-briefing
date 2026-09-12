@@ -211,7 +211,7 @@ def get_session_data(config, season, round_no, session_type):
     }
 
 
-def _ask_deepseek(config, facts, need_names, news_items, api_key, summary_max):
+def _ask_deepseek(config, facts, need_names, news_items, api_key, summary_max, retries=1):
     """DeepSeek 只返回中文译名与一句话总结；任何失败都返回空，由调用方兜底。"""
     cfg = _f1_cfg(config)
     api_base = config.get("api_base", "https://api.deepseek.com").rstrip("/")
@@ -255,32 +255,75 @@ def _ask_deepseek(config, facts, need_names, news_items, api_key, summary_max):
         "messages": [{"role": "user", "content": prompt}],
         "thinking": {"type": "disabled"},
         "temperature": 0.3,
-        "max_tokens": 300,
+        # 输出含站名 + 车手中文译名 + 一句话总结，额度留足避免 JSON 被截断
+        "max_tokens": 800,
     }
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        api_base + "/chat/completions",
-        data=body,
-        method="POST",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + api_key,
-            "User-Agent": "Mozilla/5.0 (compatible; DailyNewsBriefing/1.0)",
-        },
-    )
-    with urllib.request.urlopen(req, timeout=25) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-    content = data["choices"][0]["message"]["content"].strip()
-    match = re.search(r"\{.*\}", content, re.S)
-    if not match:
-        return {}, "", ""
-    obj = json.loads(match.group(0))
-    names = {k: (v or "").strip() for k, v in (obj.get("names") or {}).items()}
-    summary = (obj.get("summary") or "").strip()
-    if len(summary) > summary_max:
-        summary = summary[:summary_max].rstrip()
-    race_cn = (obj.get("race_name_cn") or "").strip()
-    return names, summary, race_cn
+    for attempt in range(retries + 1):
+        try:
+            req = urllib.request.Request(
+                api_base + "/chat/completions",
+                data=body,
+                method="POST",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + api_key,
+                    "User-Agent": "Mozilla/5.0 (compatible; DailyNewsBriefing/1.0)",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            choice = (data.get("choices") or [{}])[0]
+            if choice.get("finish_reason") == "length":
+                raise ValueError("response truncated")
+            content = ((choice.get("message") or {}).get("content") or "").strip()
+            match = re.search(r"\{.*\}", content, re.S)
+            if not match:
+                raise ValueError("no json in response")
+            obj = json.loads(match.group(0))
+            names = {k: (v or "").strip() for k, v in (obj.get("names") or {}).items()}
+            summary = (obj.get("summary") or "").strip()
+            if not summary:
+                raise ValueError("empty summary")
+            if len(summary) > summary_max:
+                summary = summary[:summary_max].rstrip()
+            race_cn = (obj.get("race_name_cn") or "").strip()
+            return names, summary, race_cn
+        except Exception:
+            if attempt < retries:
+                time.sleep(1 + attempt)
+                continue
+    return {}, "", ""
+
+
+def _factual_note(facts):
+    """AI 不可用时，用官方赛果的完赛状态生成一句事实型说明（不编造）。
+
+    只依据 API 返回的 status 字段判断：非 Finished、且不含 Lap（落后圈数完赛）
+    的条目视为退赛；Disqualified 单独表述为取消资格。
+    """
+    retired, disqualified = [], []
+    for r in facts.get("results", []):
+        status = (r.get("status") or "").strip()
+        low = status.lower()
+        if not status or low.startswith("finished") or "lap" in low:
+            continue
+        if "disqualif" in low:
+            disqualified.append(r.get("driver", ""))
+        else:
+            retired.append(r.get("driver", ""))
+    parts = []
+    if retired:
+        shown = "、".join(retired[:3])
+        if len(retired) > 3:
+            parts.append("{} 等 {} 位车手退赛".format(shown, len(retired)))
+        else:
+            parts.append("{} 退赛".format(shown))
+    if disqualified:
+        parts.append("{} 被取消资格".format("、".join(disqualified[:2])))
+    if not parts:
+        return "比赛平稳，无重大事故。"
+    return "本场 {}（官方赛果）。".format("，".join(parts))
 
 
 def build_report(config, session, facts, news_items, api_key, use_ai=True):
@@ -309,6 +352,9 @@ def build_report(config, session, facts, news_items, api_key, use_ai=True):
             )
         except Exception:
             names_cn, summary, race_cn = {}, "", ""
+    # AI 失败也必须有一句总结：用官方赛果状态生成事实型说明，保证 📝 行不消失
+    if not summary:
+        summary = _factual_note(facts)
 
     race_disp = race_cn if race_cn else facts["race_name"]
     title_line = "🏁 F1 {}{}".format(race_disp, SESSION_LABELS.get(session["session_type"], session["session_type"]))
@@ -395,6 +441,10 @@ def maybe_run_f1(config, api_key, news_items, f1_history, use_ai=True):
         sections.append(report)
         new_ids.append(s["session_id"])
         stats.append("F1 report: generated")
+        if _factual_note(facts) in report:
+            stats.append("F1 AI summary: FAIL, factual fallback used")
+        else:
+            stats.append("F1 AI summary: OK")
 
     if not sections:
         return None, stats, []
